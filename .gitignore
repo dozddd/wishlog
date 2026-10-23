@@ -1,0 +1,35 @@
+#переменные окружения и секреты
+.env
+.env.*
+!.env.example
+
+#виртуальное окружение python
+.venv/
+venv/
+env/
+
+#временные файлы python
+__pycache__/
+*.py[cod]
+*.pyo
+
+#настройки ide
+.idea/
+.vscode/
+
+#тесты и проверка кода
+.pytest_cache/
+.coverage
+htmlcov/
+
+#логи
+*.log
+
+#локальные базы данных
+*.db
+*.sqlite
+*.sqlite3
+
+#системные файлы
+.DS_Store
+Thumbs.db
