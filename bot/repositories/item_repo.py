@@ -9,13 +9,13 @@ class ItemRepository:
         self.session = session
 
     async def create(
-            self,
-            wishlist_id: int,
-            title: str,
-            description: str | None = None,
-            url: str | None = None,
-            price: float | None = None,
-            priority: int = 0,
+        self,
+        wishlist_id: int,
+        title: str,
+        description: str | None = None,
+        url: str | None = None,
+        price: float | None = None,
+        priority: int = 0,
     ) -> Item:
         item = Item(
             wishlist_id=wishlist_id,
