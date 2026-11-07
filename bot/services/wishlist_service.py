@@ -127,3 +127,37 @@ class WishlistService:
         if requester is None or item.booked_by_id != requester.id:
             raise NotOwnerError()
         return await self.items.set_booking(item, None)
+
+    # ---------- просмотр с учётом видимости брони ----------
+
+    async def get_wishlist_for_viewer(
+            self, wishlist_id: int, viewer_vk_id: int
+    ) -> tuple[WishList, list[ItemView]] | None:
+        """
+        Возвращает список и подарки в виде ItemView, где статус брони
+        скрыт, если смотрит владелец. Именно эта функция гарантирует
+        сохранение сюрприза - используйте её всегда вместо прямого
+        обращения к wishlist.items.
+        """
+        wishlist = await self.wishlists.get_by_id(wishlist_id)
+        if wishlist is None:
+            return None
+        viewer = await self.users.get_by_vk_id(viewer_vk_id)
+        is_owner = viewer is not None and viewer.id == wishlist.owner_id
+
+        views: list[ItemView] = []
+        for item in wishlist.items:
+            if is_owner:
+                views.append(ItemView(item=item, is_booked_visible=False, booked_by_name=None))
+            else:
+                booked_name = None
+                if item.is_booked and item.booked_by is not None:
+                    booked_name = item.booked_by.full_name
+                views.append(
+                    ItemView(
+                        item=item,
+                        is_booked_visible=item.is_booked,
+                        booked_by_name=booked_name,
+                    )
+                )
+        return wishlist, views
