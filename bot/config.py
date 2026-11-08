@@ -1,1 +1,6 @@
-TOKEN='vk1.a.6EMiw28FFzJvz0zV_7CN1yvW_YFgTmsG697o4HoBvy2sGzSNmpF4DK66RgPIoPNuW5XpGKMPNWVQ5_D-rI9O4oS19mW7YjnzAY81FWOE02ZfRphMxADziuuMqliZVll_4vQq_P8YHkVM_DY5C2lB8NovnTrTHz5lxcBk7xDz1icDmgYdOF7GE46VK3b_axjPg-DmLvfJbuFzhfJciXE4mw'
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+TOKEN = os.getenv("TOKEN")
