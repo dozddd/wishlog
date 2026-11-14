@@ -67,6 +67,35 @@ async def show_my_lists(message: Message, db_session):
     )
 
 
+# Обработчик нажатия на конкретный вишлист (просмотр и генерация диплинка)
+@bot.on.message(TextRule(ignore_case=True))
+async def show_wishlist_details(message: Message, db_session):
+    text_input = message.text
+    
+    # Если это название списка (начинается с иконки папки или совпадает со списком)
+    if text_input.startswith("📂 "):
+        list_title = text_input[2:].strip()
+        vk_id = message.from_id
+        service = WishlistService(db_session)
+        
+        wishlists = await service.get_own_wishlists(vk_id)
+        target_list = next((wl for wl in wishlists if wl.title == list_title), None)
+        
+        if target_list:
+            # Получаем ID группы для формирования правильного диплинка
+            group_info = await bot.api.groups.get_by_id()
+            group_domain = group_info[0].screen_name if group_info else f"club{group_info[0].id}"
+            
+            # Генерация диплинк-ссылки на список
+            deeplink = f"https://vk.me/{group_domain}?ref=list_{target_list.id}"
+            
+            await message.answer(
+                f"🎁 Вишлист: **{target_list.title}**\n\n"
+                f"🔗 Ссылка для друзей (поделитесь ей, чтобы показать список):\n{deeplink}"
+            )
+            return
+
+
 # Обработчик нажатия на кнопку "➕ Создать список"
 @bot.on.message(TextRule(["➕ Создать список"], ignore_case=True))
 async def ask_wishlist_title(message: Message):
@@ -86,8 +115,8 @@ async def back_to_menu(message: Message):
 async def handle_text_input(message: Message, db_session):
     text_input = message.text
     
-    # Игнорируем стандартные кнопки меню
-    if text_input in ["📋 Мои списки", "➕ Создать список", "🔙 Назад в меню", "начать", "начни", "/start"]:
+    # Игнорируем стандартные кнопки меню и клики по спискам
+    if text_input in ["📋 Мои списки", "➕ Создать список", "🔙 Назад в меню", "начать", "начни", "/start"] or text_input.startswith("📂 "):
         return
 
     vk_id = message.from_id
