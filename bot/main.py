@@ -27,22 +27,16 @@ register_database_middleware(bot, session_factory)
 # обработчик команды начала работы и регистрации
 @bot.on.message(TextRule(["начать", "начни", "/start"], ignore_case=True))
 async def cmd_start(message: Message, db_session):
-    # Получаем информацию о пользователе из VK
     user_info = await message.get_user()
     vk_id = message.from_id
     
-    # Формируем имя и username
     full_name = f"{user_info.first_name} {user_info.last_name}" if user_info else "Пользователь"
     username = user_info.screen_name if user_info else None
 
-    # Используем сервисный слой для регистрации пользователя в БД
     service = WishlistService(db_session)
     user = await service.register_user(vk_id=vk_id, username=username, full_name=full_name)
-    
-    # Фиксируем изменения в базе данных
     await db_session.commit()
 
-    # Отправляем приветственное сообщение вместе с главной клавиатурой
     await message.answer(
         f"Привет, {user.full_name}! 👋\n\n"
         "Добро пожаловать в **WishLog** — твой личный бот для списков желаний.\n"
@@ -58,7 +52,6 @@ async def show_my_lists(message: Message, db_session):
     vk_id = message.from_id
     service = WishlistService(db_session)
     
-    # Получаем списки текущего пользователя через сервисный слой
     wishlists = await service.get_own_wishlists(vk_id)
     
     if not wishlists:
@@ -74,10 +67,41 @@ async def show_my_lists(message: Message, db_session):
     )
 
 
+# Обработчик нажатия на кнопку "➕ Создать список"
+@bot.on.message(TextRule(["➕ Создать список"], ignore_case=True))
+async def ask_wishlist_title(message: Message):
+    await message.answer(
+        "📝 Введи название для нового вишлиста (например: «День рождения» или «Новый год»):"
+    )
+
+
 # Обработчик возврата в главное меню
 @bot.on.message(TextRule(["🔙 Назад в меню"], ignore_case=True))
 async def back_to_menu(message: Message):
     await message.answer("Главное меню:", keyboard=get_main_keyboard())
+
+
+# Универсальный обработчик текстовых сообщений (создание вишлиста)
+@bot.on.message()
+async def handle_text_input(message: Message, db_session):
+    text_input = message.text
+    
+    # Игнорируем стандартные кнопки меню
+    if text_input in ["📋 Мои списки", "➕ Создать список", "🔙 Назад в меню", "начать", "начни", "/start"]:
+        return
+
+    vk_id = message.from_id
+    service = WishlistService(db_session)
+    
+    try:
+        await service.create_wishlist(owner_vk_id=vk_id, title=text_input)
+        await db_session.commit()
+        await message.answer(
+            f"✅ Вишлист «{text_input}» успешно создан!",
+            keyboard=get_main_keyboard()
+        )
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":
