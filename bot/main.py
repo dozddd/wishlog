@@ -1,6 +1,5 @@
-from sqlalchemy import text
 import logging
-
+from sqlalchemy import text
 from vkbottle import Bot
 from vkbottle.bot import Message
 from vkbottle.dispatch.rules.base import TextRule
@@ -8,7 +7,7 @@ from vkbottle.dispatch.rules.base import TextRule
 from bot.config import TOKEN, DATABASE_URL
 from bot.database.engine import create_engine_and_sessionmaker
 from bot.session import register_database_middleware
-
+from bot.services.wishlist_service import WishlistService
 
 # логирование для отладки
 logging.basicConfig(level=logging.INFO)
@@ -23,20 +22,36 @@ engine, session_factory = create_engine_and_sessionmaker(DATABASE_URL)
 register_database_middleware(bot, session_factory)
 
 
-# обработчик команды начала работы
-@bot.on.message(TextRule(["начать", "начни"], ignore_case=True))
+# обработчик команды начала работы и регистрации
+@bot.on.message(TextRule(["начать", "начни", "/start"], ignore_case=True))
 async def cmd_start(message: Message, db_session):
-    # проверяем подключение к базе данных
-    result = await db_session.execute(text("SELECT 1"))
+    # Получаем информацию о пользователе из VK
+    user_info = await message.get_user()
+    vk_id = message.from_id
+    
+    # Формируем имя и username
+    full_name = f"{user_info.first_name} {user_info.last_name}" if user_info else "Пользователь"
+    username = user_info.screen_name if user_info else None
 
-    # получаем результат запроса
-    value = result.scalar()
+    # Используем сервисный слой для регистрации пользователя в БД
+    service = WishlistService(db_session)
+    user = await service.register_user(vk_id=vk_id, username=username, full_name=full_name)
+    
+    # Фиксируем изменения в базе данных
+    await db_session.commit()
 
-    await message.answer(f"Подключение к БД работает: {value}")
+    # Отправляем приветственное сообщение
+    await message.answer(
+        f"Привет, {user.full_name}! 👋\n\n"
+        "Добро пожаловать в **WishLog** — твой личный бот для списков желаний.\n"
+        "Здесь ты можешь создавать вишлисты, добавлять подарки и делиться ими с друзьями, сохраняя интригу бронирования! 🎁\n\n"
+        "Введи команду или выбери нужное действие в меню."
+    )
 
 
 if __name__ == "__main__":
     try:
+        print("Бот запущен...")
         bot.run()
     except (KeyboardInterrupt, SystemExit):
         print("Бот выключен")
