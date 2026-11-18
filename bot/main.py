@@ -68,11 +68,15 @@ async def show_my_lists(message: Message, db_session):
 
 
 # Обработчик нажатия на конкретный вишлист (просмотр и генерация диплинка)
-@bot.on.message(TextRule(ignore_case=True))
+@bot.on.message()
 async def show_wishlist_details(message: Message, db_session):
     text_input = message.text
     
-    # Если это название списка (начинается с иконки папки или совпадает со списком)
+    # Игнорируем стандартные кнопки меню
+    if text_input in ["📋 Мои списки", "➕ Создать список", "🔙 Назад в меню", "начать", "начни", "/start"]:
+        return
+
+    # Если это название списка (начинается с иконки папки)
     if text_input.startswith("📂 "):
         list_title = text_input[2:].strip()
         vk_id = message.from_id
@@ -82,18 +86,32 @@ async def show_wishlist_details(message: Message, db_session):
         target_list = next((wl for wl in wishlists if wl.title == list_title), None)
         
         if target_list:
-            # Получаем ID группы для формирования правильного диплинка
-            group_info = await bot.api.groups.get_by_id()
-            group_domain = group_info[0].screen_name if group_info else f"club{group_info[0].id}"
-            
-            # Генерация диплинк-ссылки на список
-            deeplink = f"https://vk.me/{group_domain}?ref=list_{target_list.id}"
+            try:
+                group_info = await bot.api.groups.get_by_id()
+                group_domain = group_info[0].screen_name if group_info else f"club{group_info[0].id}"
+                deeplink = f"https://vk.me/{group_domain}?ref=list_{target_list.id}"
+            except Exception:
+                deeplink = "Не удалось сгенерировать ссылку"
             
             await message.answer(
                 f"🎁 Вишлист: **{target_list.title}**\n\n"
                 f"🔗 Ссылка для друзей (поделитесь ей, чтобы показать список):\n{deeplink}"
             )
             return
+
+    # Если это не кнопка и не выбор списка — значит, пользователь вводит название нового вишлиста
+    vk_id = message.from_id
+    service = WishlistService(db_session)
+    
+    try:
+        await service.create_wishlist(owner_vk_id=vk_id, title=text_input)
+        await db_session.commit()
+        await message.answer(
+            f"✅ Вишлист «{text_input}» успешно создан!",
+            keyboard=get_main_keyboard()
+        )
+    except Exception:
+        pass
 
 
 # Обработчик нажатия на кнопку "➕ Создать список"
@@ -108,29 +126,6 @@ async def ask_wishlist_title(message: Message):
 @bot.on.message(TextRule(["🔙 Назад в меню"], ignore_case=True))
 async def back_to_menu(message: Message):
     await message.answer("Главное меню:", keyboard=get_main_keyboard())
-
-
-# Универсальный обработчик текстовых сообщений (создание вишлиста)
-@bot.on.message()
-async def handle_text_input(message: Message, db_session):
-    text_input = message.text
-    
-    # Игнорируем стандартные кнопки меню и клики по спискам
-    if text_input in ["📋 Мои списки", "➕ Создать список", "🔙 Назад в меню", "начать", "начни", "/start"] or text_input.startswith("📂 "):
-        return
-
-    vk_id = message.from_id
-    service = WishlistService(db_session)
-    
-    try:
-        await service.create_wishlist(owner_vk_id=vk_id, title=text_input)
-        await db_session.commit()
-        await message.answer(
-            f"✅ Вишлист «{text_input}» успешно создан!",
-            keyboard=get_main_keyboard()
-        )
-    except Exception:
-        pass
 
 
 if __name__ == "__main__":
