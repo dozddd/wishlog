@@ -1,4 +1,6 @@
+import asyncio
 import logging
+
 from sqlalchemy import text
 
 from vkbottle import Bot
@@ -6,7 +8,7 @@ from vkbottle.bot import Message
 from vkbottle.dispatch.rules.base import TextRule
 
 from bot.config import TOKEN, DATABASE_URL
-from bot.database.engine import create_engine_and_sessionmaker
+from bot.database.engine import create_engine_and_sessionmaker, init_models
 from bot.session import register_database_middleware
 from bot.services.wishlist_service import WishlistService
 from bot.keyboards import get_main_keyboard, get_lists_keyboard
@@ -16,6 +18,10 @@ logging.basicConfig(level=logging.INFO)
 
 # создаём бота
 bot = Bot(token=TOKEN)
+
+import os
+print("Текущая рабочая директория:", os.getcwd())
+print("Путь к файлу БД будет:", os.path.abspath("./wishlist.db"))
 
 # создаём движок и фабрику сессий БД
 engine, session_factory = create_engine_and_sessionmaker(DATABASE_URL)
@@ -29,7 +35,7 @@ register_database_middleware(bot, session_factory)
 async def cmd_start(message: Message, db_session):
     user_info = await message.get_user()
     vk_id = message.from_id
-    
+
     full_name = f"{user_info.first_name} {user_info.last_name}" if user_info else "Пользователь"
     username = user_info.screen_name if user_info else None
 
@@ -51,9 +57,9 @@ async def cmd_start(message: Message, db_session):
 async def show_my_lists(message: Message, db_session):
     vk_id = message.from_id
     service = WishlistService(db_session)
-    
+
     wishlists = await service.get_own_wishlists(vk_id)
-    
+
     if not wishlists:
         await message.answer(
             "У тебя пока нет ни одного вишлиста. Нажми «➕ Создать список», чтобы добавить первый!",
@@ -71,7 +77,7 @@ async def show_my_lists(message: Message, db_session):
 @bot.on.message()
 async def show_wishlist_details(message: Message, db_session):
     text_input = message.text
-    
+
     # Игнорируем стандартные кнопки меню
     if text_input in ["📋 Мои списки", "➕ Создать список", "🔙 Назад в меню", "начать", "начни", "/start"]:
         return
@@ -81,10 +87,10 @@ async def show_wishlist_details(message: Message, db_session):
         list_title = text_input[2:].strip()
         vk_id = message.from_id
         service = WishlistService(db_session)
-        
+
         wishlists = await service.get_own_wishlists(vk_id)
         target_list = next((wl for wl in wishlists if wl.title == list_title), None)
-        
+
         if target_list:
             try:
                 group_info = await bot.api.groups.get_by_id()
@@ -92,7 +98,7 @@ async def show_wishlist_details(message: Message, db_session):
                 deeplink = f"https://vk.me/{group_domain}?ref=list_{target_list.id}"
             except Exception:
                 deeplink = "Не удалось сгенерировать ссылку"
-            
+
             await message.answer(
                 f"🎁 Вишлист: **{target_list.title}**\n\n"
                 f"🔗 Ссылка для друзей (поделитесь ей, чтобы показать список):\n{deeplink}"
@@ -102,7 +108,7 @@ async def show_wishlist_details(message: Message, db_session):
     # Если это не кнопка и не выбор списка — значит, пользователь вводит название нового вишлиста
     vk_id = message.from_id
     service = WishlistService(db_session)
-    
+
     try:
         await service.create_wishlist(owner_vk_id=vk_id, title=text_input)
         await db_session.commit()
@@ -130,6 +136,8 @@ async def back_to_menu(message: Message):
 
 if __name__ == "__main__":
     try:
+        print("Инициализация базы данных...")
+        asyncio.run(init_models(engine))
         print("Бот запущен...")
         bot.run()
     except (KeyboardInterrupt, SystemExit):
